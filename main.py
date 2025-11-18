@@ -13,9 +13,10 @@ import os
 # GEMINI CONFIG (STEP 4)
 # -----------------------------------------
 
-GEMINI_API_KEY = "AIZaSyDMhdwIe0OT9SoGrd0bIIRVN8f7K168c3w"   # <-- your key
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")   # <-- your key
 
 genai.configure(api_key=GEMINI_API_KEY)
+
 GEMINI_MODEL = "gemini-pro"
 
 
@@ -522,3 +523,4 @@ Final Optimized Resume:
 @app.get("/")
 def read_root():
     return {"message": "ATSPro backend running with Steps 1–4 (ATS + Gemini AI)"}
+
