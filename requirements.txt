@@ -3,5 +3,5 @@ uvicorn
 pdfplumber
 python-docx
 nltk
-google-generativeai
+google-generativeai>=0.7.0
 python-multipart
