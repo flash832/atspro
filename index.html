@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ATSPro – ATS Resume Checker</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="nav.js" defer></script>
+</head>
+<body>
+
+  <div class="panel">
+    <h1>ATSPro Resume Checker</h1>
+    <p style="text-align:center;color:#d1d5db;margin-top:-4px;">
+      Upload your resume and job description to get an ATS-style score.
+    </p>
+
+       <!-- TRUST STRIP -->
+    <div class="trust-strip">
+      <div class="trust-item">🔒 We don’t store your resume</div>
+      <div class="trust-item">🧠 Real ATS-style parsing + AI</div>
+      <div class="trust-item">✅ No login • 100% free to try</div>
+    </div>
+
+
+    <!-- ATS SCORE FORM -->
+    <form id="resumeForm">
+      <label for="file">Resume (PDF or DOCX)</label>
+
+      <div class="upload-row">
+        <!-- hidden real input -->
+        <input type="file" id="file" accept=".pdf,.docx" required class="file-input-hidden">
+
+        <!-- pretty UI -->
+        <button type="button" class="upload-btn" id="fileTrigger">
+          📄 Upload Resume
+        </button>
+        <span class="file-name" id="fileName">No file selected</span>
+      </div>
+
+      <label for="job_description">Job Description (optional but recommended)</label>
+      <textarea id="job_description" placeholder="Paste the job description here..."></textarea>
+
+      <button id="submitBtn" type="submit">Check ATS Score</button>
+    </form>
+
+    <!-- ATS RESULT -->
+    <div id="result" class="result" style="display:none;"></div>
+
+    <!-- AI RESUME ASSISTANT -->
+    <div class="ai-panel" style="margin-top:32px;">
+      <h2 style="color:#facc15;">AI Resume Assistant (Gemini)</h2>
+      <p style="color:#d1d5db;margin-bottom:16px;">
+        Paste your text below to get AI-optimized versions based on your job description.
+      </p>
+
+      <!-- AI Summary Rewrite -->
+      <div class="ai-block" style="margin-bottom:20px;">
+        <h3 style="color:#facc15;margin-bottom:4px;">Improve Summary with AI</h3>
+        <p style="font-size:0.9rem;color:#9ca3af;margin-top:0;">
+          Paste your current resume summary. We’ll rewrite it to be more ATS-friendly and relevant to the job description.
+        </p>
+        <textarea id="aiSummaryInput" placeholder="Paste your current resume summary here..." rows="4"></textarea>
+        <button type="button" id="aiSummaryBtn" style="margin-top:8px;">✨ Improve Summary</button>
+        <textarea id="aiSummaryOutput" placeholder="AI improved summary will appear here..." rows="4" readonly style="margin-top:8px;"></textarea>
+      </div>
+
+      <!-- AI Bullet Rewrite -->
+      <div class="ai-block" style="margin-bottom:20px;">
+        <h3 style="color:#facc15;margin-bottom:4px;">Rewrite Bullet with AI</h3>
+        <p style="font-size:0.9rem;color:#9ca3af;margin-top:0;">
+          Paste one experience bullet. AI will turn it into a strong, action-based bullet with impact.
+        </p>
+        <textarea id="aiBulletInput" placeholder="Paste one bullet from your experience section..." rows="3"></textarea>
+        <button type="button" id="aiBulletBtn" style="margin-top:8px;">✨ Rewrite Bullet</button>
+        <textarea id="aiBulletOutput" placeholder="AI rewritten bullet will appear here..." rows="3" readonly style="margin-top:8px;"></textarea>
+      </div>
+
+      <!-- AI Section Improve -->
+      <div class="ai-block" style="margin-bottom:20px;">
+        <h3 style="color:#facc15;margin-bottom:4px;">Improve Any Section</h3>
+        <p style="font-size:0.9rem;color:#9ca3af;margin-top:0;">
+          Choose a section (Summary, Skills, Experience, Projects, etc.) and paste its content. AI will improve clarity and impact.
+        </p>
+        <input id="aiSectionName" type="text" placeholder="Section name (e.g. Experience, Projects)" style="width:100%;margin-bottom:6px;">
+        <textarea id="aiSectionInput" placeholder="Paste the section content here..." rows="4"></textarea>
+        <button type="button" id="aiSectionBtn" style="margin-top:8px;">✨ Improve Section</button>
+        <textarea id="aiSectionOutput" placeholder="AI improved section will appear here..." rows="4" readonly style="margin-top:8px;"></textarea>
+      </div>
+
+      <!-- AI Keyword Optimization -->
+      <div class="ai-block" style="margin-bottom:20px;">
+        <h3 style="color:#facc15;margin-bottom:4px;">Keyword Optimization</h3>
+        <p style="font-size:0.9rem;color:#9ca3af;margin-top:0;">
+          Paste your full resume text. AI will compare it with the job description and suggest missing keywords and bullets.
+        </p>
+        <textarea id="aiKeywordInput" placeholder="Paste your full resume text here..." rows="5"></textarea>
+        <button type="button" id="aiKeywordBtn" style="margin-top:8px;">✨ Analyze Keywords</button>
+        <textarea id="aiKeywordOutput" placeholder="Missing keywords + suggested bullets will appear here..." rows="5" readonly style="margin-top:8px;"></textarea>
+      </div>
+
+      <!-- AI Full ATS Improvement -->
+      <div class="ai-block">
+        <h3 style="color:#facc15;margin-bottom:4px;">Full ATS Resume Improvement</h3>
+        <p style="font-size:0.9rem;color:#9ca3af;margin-top:0;">
+          Paste your full resume text. AI will return an improved summary, experience, skills, and an optimized resume layout.
+        </p>
+        <textarea id="aiFullInput" placeholder="Paste your full resume text here..." rows="6"></textarea>
+        <button type="button" id="aiFullBtn" style="margin-top:8px;">✨ Full ATS Improve</button>
+        <textarea id="aiFullOutput" placeholder="AI full improvement (summary, experience, skills, final resume) will appear here..." rows="8" readonly style="margin-top:8px;"></textarea>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000"; // change to your Render URL when deployed
+
+    // ---------------------------
+    // ATS SCORE FORM LOGIC
+    // ---------------------------
+    const form = document.getElementById('resumeForm');
+    const resultDiv = document.getElementById('result');
+    const submitBtn = document.getElementById('submitBtn');
+    const fileInput = document.getElementById('file');
+    const jdInput = document.getElementById('job_description');
+
+    // custom upload bar logic
+    const fileTrigger = document.getElementById("fileTrigger");
+    const fileNameSpan = document.getElementById("fileName");
+
+    // open file dialog when clicking the pretty button
+    fileTrigger.addEventListener("click", () => {
+      fileInput.click();
+    });
+
+    // show selected filename
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files && fileInput.files[0]) {
+        fileNameSpan.textContent = fileInput.files[0].name;
+      } else {
+        fileNameSpan.textContent = "No file selected";
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const file = fileInput.files[0];
+      const jd   = jdInput.value || "";
+
+      if (!file) {
+        alert("Please upload a resume file.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("job_description", jd);
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Analyzing...";
+      resultDiv.style.display = "block";
+      resultDiv.innerHTML = `<p style="color:#facc15;">Running ATS analysis... please wait.</p>`;
+
+      try {
+        const res = await fetch(`${API_BASE}/upload-resume`, {
+          method: "POST",
+          body: formData
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || "Server error");
+        }
+
+        const data = await res.json();
+        renderResults(data);
+
+      } catch (err) {
+        console.error(err);
+        resultDiv.innerHTML = `<p style="color:#f87171;">Error: ${err.message}</p>`;
+        resultDiv.style.display = "block";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Check ATS Score";
+      }
+    });
+
+    function renderResults(data) {
+      const sections         = data.sections_found || {};
+      const suggestions      = data.suggestions || [];
+      const matched          = data.matched_keywords || [];
+      const formattingIssues = data.formatting_issues || [];
+      const writingIssues    = data.writing_issues || [];
+
+      const ats    = data.ats_score ?? 0;
+      const struct = data.structure_score ?? 0;
+      const fmt    = data.formatting_score ?? 0;
+      const key    = data.keyword_score ?? 0;
+      const write  = data.writing_score ?? 0;
+
+      let scoreColor = "#22c55e";
+      if (ats < 40) scoreColor = "#ef4444";
+      else if (ats < 70) scoreColor = "#facc15";
+
+      let html = `
+        <h2 style="color:${scoreColor};margin-top:0;">ATS Score: ${ats}/100</h2>
+
+        <div class="score-grid">
+          <div><b>Structure Score:</b> ${struct} / 30</div>
+          <div><b>Formatting Score:</b> ${fmt} / 20</div>
+          <div><b>Keyword Score:</b> ${key} / 50</div>
+          <div><b>Writing Score:</b> ${write} / 30</div>
+        </div>
+
+        <h3 style="color:#facc15;">Sections Detected</h3>
+        <ul>
+          <li>Summary: ${sections.summary ? "✅" : "❌"}</li>
+          <li>Skills: ${sections.skills ? "✅" : "❌"}</li>
+          <li>Experience: ${sections.experience ? "✅" : "❌"}</li>
+          <li>Education: ${sections.education ? "✅" : "❌"}</li>
+        </ul>
+
+        <h3 style="color:#facc15;">Formatting Issues</h3>
+        ${
+          formattingIssues.length
+            ? "<ul>" + formattingIssues.map(i => `<li>${i}</li>`).join("") + "</ul>"
+            : "<p>✅ No major formatting issues detected.</p>"
+        }
+
+        <h3 style="color:#facc15;">Writing Issues</h3>
+        ${
+          writingIssues.length
+            ? "<ul>" + writingIssues.map(i => `<li>${i}</li>`).join("") + "</ul>"
+            : "<p>✅ Writing quality looks good.</p>"
+        }
+
+        <h3 style="color:#facc15;">Matched Keywords</h3>
+        <p>${matched.length ? matched.join(", ") : "No job-specific keywords matched (try pasting a job description)."}</p>
+
+        <h3 style="color:#facc15;">Suggestions</h3>
+        ${
+          suggestions.length
+            ? "<ul>" + suggestions.map(s => `<li>${s}</li>`).join("") + "</ul>"
+            : "<p>Your resume looks well structured based on current checks.</p>"
+        }
+      `;
+
+      resultDiv.innerHTML = html;
+      resultDiv.style.display = "block";
+    }
+
+    // ---------------------------
+    // AI SUMMARY REWRITE
+    // ---------------------------
+    const aiSummaryInput  = document.getElementById("aiSummaryInput");
+    const aiSummaryOutput = document.getElementById("aiSummaryOutput");
+    const aiSummaryBtn    = document.getElementById("aiSummaryBtn");
+
+    aiSummaryBtn.addEventListener("click", async () => {
+      const summaryText = aiSummaryInput.value.trim();
+      const jd          = jdInput.value || "";
+
+      if (!summaryText) {
+        alert("Please paste your summary first.");
+        return;
+      }
+
+      aiSummaryBtn.disabled = true;
+      aiSummaryBtn.textContent = "Thinking...";
+
+      try {
+        const fd = new FormData();
+        fd.append("summary", summaryText);
+        fd.append("job_description", jd);
+
+        const res = await fetch(`${API_BASE}/ai/rewrite-summary`, {
+          method: "POST",
+          body: fd
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || "AI error");
+        }
+
+        const data = await res.json();
+        aiSummaryOutput.value = data.improved_summary || "No response from AI.";
+      } catch (err) {
+        console.error(err);
+        aiSummaryOutput.value = "Error: " + err.message;
+      } finally {
+        aiSummaryBtn.disabled = false;
+        aiSummaryBtn.textContent = "✨ Improve Summary";
+      }
+    });
+
+    // ---------------------------
+    // AI BULLET REWRITE
+    // ---------------------------
+    const aiBulletInput  = document.getElementById("aiBulletInput");
+    const aiBulletOutput = document.getElementById("aiBulletOutput");
+    const aiBulletBtn    = document.getElementById("aiBulletBtn");
+
+    aiBulletBtn.addEventListener("click", async () => {
+      const bulletText = aiBulletInput.value.trim();
+      const jd         = jdInput.value || "";
+
+      if (!bulletText) {
+        alert("Please paste a bullet to rewrite.");
+        return;
+      }
+
+      aiBulletBtn.disabled = true;
+      aiBulletBtn.textContent = "Thinking...";
+
+      try {
+        const fd = new FormData();
+        fd.append("bullet", bulletText);
+        fd.append("job_description", jd);
+
+        const res = await fetch(`${API_BASE}/ai/rewrite-bullet`, {
+          method: "POST",
+          body: fd
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || "AI error");
+        }
+
+        const data = await res.json();
+        aiBulletOutput.value = data.improved_bullet || "No response from AI.";
+      } catch (err) {
+        console.error(err);
+        aiBulletOutput.value = "Error: " + err.message;
+      } finally {
+        aiBulletBtn.disabled = false;
+        aiBulletBtn.textContent = "✨ Rewrite Bullet";
+      }
+    });
+
+    // ---------------------------
+    // AI SECTION IMPROVE
+    // ---------------------------
+    const aiSectionName   = document.getElementById("aiSectionName");
+    const aiSectionInput  = document.getElementById("aiSectionInput");
+    const aiSectionOutput = document.getElementById("aiSectionOutput");
+    const aiSectionBtn    = document.getElementById("aiSectionBtn");
+
+    aiSectionBtn.addEventListener("click", async () => {
+      const secName = (aiSectionName.value || "Section").trim();
+      const secText = aiSectionInput.value.trim();
+
+      if (!secText) {
+        alert("Please paste a section to improve.");
+        return;
+      }
+
+      aiSectionBtn.disabled = true;
+      aiSectionBtn.textContent = "Thinking...";
+
+      try {
+        const fd = new FormData();
+        fd.append("section_name", secName);
+        fd.append("section_text", secText);
+
+        const res = await fetch(`${API_BASE}/ai/improve-section`, {
+          method: "POST",
+          body: fd
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || "AI error");
+        }
+
+        const data = await res.json();
+        aiSectionOutput.value = data.improved_section || "No response from AI.";
+      } catch (err) {
+        console.error(err);
+        aiSectionOutput.value = "Error: " + err.message;
+      } finally {
+        aiSectionBtn.disabled = false;
+        aiSectionBtn.textContent = "✨ Improve Section";
+      }
+    });
+
+    // ---------------------------
+    // AI KEYWORD OPTIMIZATION
+    // ---------------------------
+    const aiKeywordInput  = document.getElementById("aiKeywordInput");
+    const aiKeywordOutput = document.getElementById("aiKeywordOutput");
+    const aiKeywordBtn    = document.getElementById("aiKeywordBtn");
+
+    aiKeywordBtn.addEventListener("click", async () => {
+      const resumeText = aiKeywordInput.value.trim();
+      const jd         = jdInput.value || "";
+
+      if (!resumeText) {
+        alert("Please paste your resume text.");
+        return;
+      }
+      if (!jd) {
+        alert("Please paste a job description for keyword analysis.");
+        return;
+      }
+
+      aiKeywordBtn.disabled = true;
+      aiKeywordBtn.textContent = "Thinking...";
+
+      try {
+        const fd = new FormData();
+        fd.append("resume_text", resumeText);
+        fd.append("job_description", jd);
+
+        const res = await fetch(`${API_BASE}/ai/keyword-optimize`, {
+          method: "POST",
+          body: fd
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || "AI error");
+        }
+
+        const data = await res.json();
+        aiKeywordOutput.value = data.keyword_optimization || "No response from AI.";
+      } catch (err) {
+        console.error(err);
+        aiKeywordOutput.value = "Error: " + err.message;
+      } finally {
+        aiKeywordBtn.disabled = false;
+        aiKeywordBtn.textContent = "✨ Analyze Keywords";
+      }
+    });
+
+    // ---------------------------
+    // AI FULL ATS IMPROVE
+    // ---------------------------
+    const aiFullInput  = document.getElementById("aiFullInput");
+    const aiFullOutput = document.getElementById("aiFullOutput");
+    const aiFullBtn    = document.getElementById("aiFullBtn");
+
+    aiFullBtn.addEventListener("click", async () => {
+      const resumeText = aiFullInput.value.trim();
+      const jd         = jdInput.value || "";
+
+      if (!resumeText) {
+        alert("Please paste your resume text.");
+        return;
+      }
+      if (!jd) {
+        alert("Please paste a job description for full ATS improvement.");
+        return;
+      }
+
+      aiFullBtn.disabled = true;
+      aiFullBtn.textContent = "Thinking...";
+
+      try {
+        const fd = new FormData();
+        fd.append("resume_text", resumeText);
+        fd.append("job_description", jd);
+
+        const res = await fetch(`${API_BASE}/ai/full-ats-improve`, {
+          method: "POST",
+          body: fd
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || "AI error");
+        }
+
+        const data = await res.json();
+        aiFullOutput.value = data.full_improvement || "No response from AI.";
+      } catch (err) {
+        console.error(err);
+        aiFullOutput.value = "Error: " + err.message;
+      } finally {
+        aiFullBtn.disabled = false;
+        aiFullBtn.textContent = "✨ Full ATS Improve";
+      }
+    });
+
+  </script>
+
+</body>
+</html>
