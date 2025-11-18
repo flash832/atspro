@@ -5,7 +5,6 @@ import docx
 import io
 import re
 from collections import Counter
-from nltk.stem import WordNetLemmatizer
 import google.generativeai as genai
 import os
 
@@ -23,7 +22,6 @@ GEMINI_MODEL = "gemini-pro"
 # -----------------------------------------
 # GLOBALS & KEYWORD LISTS
 # -----------------------------------------
-lemmatizer = WordNetLemmatizer()
 
 STOPWORDS = set([
     "the", "and", "with", "your", "for", "are", "was", "were", "you",
@@ -186,14 +184,20 @@ def analyze_formatting(text, file_bytes, filename):
 # -----------------------------------------
 # ADVANCED KEYWORD ENGINE (STEP 1)
 # -----------------------------------------
-def normalize_text(t):
+def normalize_text(t: str):
+    """
+    Simple tokenizer for ATS keyword matching.
+    No NLTK, so it works on Render without extra corpora.
+    """
     t = t.lower()
-    t = re.sub(r"[^a-zA-Z0-9\s]", " ", t)
-    return [
-        lemmatizer.lemmatize(w)
+    # keep only a–z, 0–9 and spaces
+    t = re.sub(r"[^a-z0-9\s]", " ", t)
+    words = [
+        w
         for w in t.split()
         if w not in STOPWORDS and len(w) > 2
     ]
+    return words
 
 
 # -----------------------------------------
@@ -295,10 +299,14 @@ async def upload_resume(
     }
 
     structure_score = 0
-    if sections["summary"]: structure_score += 5
-    if sections["skills"]: structure_score += 10
-    if sections["experience"]: structure_score += 10
-    if sections["education"]: structure_score += 5
+    if sections["summary"]:
+        structure_score += 5
+    if sections["skills"]:
+        structure_score += 10
+    if sections["experience"]:
+        structure_score += 10
+    if sections["education"]:
+        structure_score += 5
 
     # -------- FORMATTING (STEP 2) --------
     formatting_score, formatting_issues = analyze_formatting(text, file_bytes, filename)
