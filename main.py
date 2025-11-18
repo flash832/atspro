@@ -14,11 +14,10 @@ import os
 # -----------------------------------------
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")   # <-- your key
-if not GEMINI_API_KEY:
-    raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+
 genai.configure(api_key=GEMINI_API_KEY)
 
-GEMINI_MODEL =  "gemini-1.5-flash-latest"
+GEMINI_MODEL =  "gemini-1.5-flash"
 
 
 # -----------------------------------------
@@ -524,6 +523,7 @@ Final Optimized Resume:
 @app.get("/")
 def read_root():
     return {"message": "ATSPro backend running with Steps 1–4 (ATS + Gemini AI)"}
+
 
 
 
