@@ -6,32 +6,62 @@ import io
 import re
 from collections import Counter
 import os
-import google.generativeai as genai
+import requests  # NEW: use REST API for Gemini
 
 # -----------------------------------------
-# GEMINI CONFIG — NEW API (WORKS WITH 1.5 FLASH)
+# GEMINI CONFIG — REST API (WORKS WITH 1.5 FLASH)
 # -----------------------------------------
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not GEMINI_API_KEY:
-    raise Exception("GEMINI_API_KEY environment variable not found.")
-
-genai.configure(api_key=GEMINI_API_KEY)
-
-# IMPORTANT → use new v1 model path
-GEMINI_MODEL = "models/gemini-1.5-flash"
+# You can change model here if needed (e.g. "gemini-1.5-pro")
+GEMINI_MODEL = "gemini-1.5-flash"
 
 
-def gemini_generate(prompt):
-    """Safe wrapper for Gemini API calls."""
+def gemini_generate(prompt: str) -> str:
+    """
+    Safe wrapper for Gemini REST API.
+    Uses v1beta generateContent endpoint.
+    """
+    if not GEMINI_API_KEY:
+        return "AI Error: GEMINI_API_KEY is not configured on the server."
+
     try:
-        model = genai.GenerativeModel(GEMINI_MODEL)
-        response = model.generate_content(
-            prompt,
-            generation_config={"max_output_tokens": 800}
+        url = (
+            f"https://generativelanguage.googleapis.com/"
+            f"v1beta/models/{GEMINI_MODEL}:generateContent"
+            f"?key={GEMINI_API_KEY}"
         )
-        return response.text
+
+        headers = {"Content-Type": "application/json"}
+
+        body = {
+            "contents": [
+                {"parts": [{"text": prompt}]}
+            ],
+            "generation_config": {
+                "max_output_tokens": 800
+            }
+        }
+
+        res = requests.post(url, headers=headers, json=body, timeout=30)
+        data = res.json()
+
+        # If API returned an error object
+        if "error" in data:
+            return f"AI Error: {data['error'].get('message', data['error'])}"
+
+        # Normal path – grab first candidate text
+        candidates = data.get("candidates", [])
+        if not candidates:
+            return "AI Error: No candidates returned from Gemini."
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        if not parts:
+            return "AI Error: No content parts returned from Gemini."
+
+        return parts[0].get("text", "").strip() or "AI Error: Empty response from Gemini."
+
     except Exception as e:
         return f"AI Error: {str(e)}"
 
@@ -61,7 +91,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
                 text += (page.extract_text() or "") + "\n"
-    except:
+    except Exception:
         raise HTTPException(400, "Unable to parse PDF. It may be scanned.")
     return text.strip()
 
@@ -70,7 +100,7 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
     try:
         document = docx.Document(io.BytesIO(file_bytes))
         return "\n".join([p.text for p in document.paragraphs]).strip()
-    except:
+    except Exception:
         raise HTTPException(400, "Unable to parse DOCX file.")
 
 
@@ -84,7 +114,7 @@ STOPWORDS = set([
 ])
 
 
-def normalize_text(t):
+def normalize_text(t: str):
     t = t.lower()
     t = re.sub(r"[^a-z0-9\s]", " ", t)
     return [w for w in t.split() if w not in STOPWORDS and len(w) > 2]
@@ -106,23 +136,27 @@ WEAK_PHRASES = [
 PASSIVE = ["was", "were", "is", "are", "be", "been"]
 
 
-def analyze_writing(text):
+def analyze_writing(text: str):
     score = 30
     issues = []
 
+    # action verbs
     if sum(1 for w in text.lower().split() if w in ACTION_VERBS) < 3:
         issues.append("Too few strong action verbs.")
         score -= 5
 
+    # numbers / % achievements
     if not re.search(r"\d+%|\d{2,}", text):
         issues.append("No measurable achievements (numbers/metrics).")
         score -= 4
 
+    # weak phrases
     weak = [p for p in WEAK_PHRASES if p in text.lower()]
     if weak:
         issues.append(f"Weak phrases detected: {', '.join(weak)}")
         score -= 3
 
+    # passive voice
     if sum(1 for w in text.lower().split() if w in PASSIVE) > 8:
         issues.append("Too much passive voice.")
         score -= 3
@@ -130,7 +164,7 @@ def analyze_writing(text):
     return max(score, 0), issues
 
 
-def analyze_formatting(text):
+def analyze_formatting(text: str):
     score = 20
     issues = []
 
@@ -198,6 +232,13 @@ async def upload_resume(file: UploadFile = File(...), job_description: str = For
     # FINAL ATS SCORE
     ats_score = min(100, structure_score + formatting_score + writing_score + keyword_score)
 
+    suggestions_raw = [
+        "Add summary section" if not sections["summary"] else "",
+        "Add skills section" if not sections["skills"] else "",
+        "Add job keywords naturally" if job_description else ""
+    ]
+    suggestions = [s for s in suggestions_raw if s]
+
     return {
         "filename": file.filename,
         "preview": text[:800],
@@ -210,11 +251,7 @@ async def upload_resume(file: UploadFile = File(...), job_description: str = For
         "writing_issues": writing_issues,
         "keyword_score": keyword_score,
         "matched_keywords": matched,
-        "suggestions": [
-            "Add summary section" if not sections["summary"] else "",
-            "Add skills section" if not sections["skills"] else "",
-            "Add job keywords naturally" if job_description else ""
-        ]
+        "suggestions": suggestions
     }
 
 
@@ -291,4 +328,4 @@ Return:
 
 @app.get("/")
 def root():
-    return {"message": "ATSPro backend running successfully (Gemini 1.5 Flash enabled)!"}
+    return {"message": "ATSPro backend running successfully (Gemini via REST API enabled)!"}
