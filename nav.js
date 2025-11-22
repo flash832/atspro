@@ -62,3 +62,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+// Recruiter Dashboard Example Data Loader
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.querySelector(".dashboard-grid")) {
+    console.log("Recruiter Dashboard Loaded");
+
+    // later you will replace this with real API calls
+    // fetchDashboardData();
+  }
+});
+
